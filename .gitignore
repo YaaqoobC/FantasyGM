@@ -1,0 +1,7 @@
+fantasy_gm_env/
+__pycache__/
+*.pyc
+.env
+
+data/raw/
+data/*.db

@@ -8,6 +8,14 @@ An NBA fantasy basketball recommendation engine that automatically retrieves NBA
 - Historic data will be obtained from [nba_api](https://github.com/swar/nba_api)
 - Current data will be obtained from [yahoo fantasy sports api](https://sports.yahoo.com/developer/)
 
+#### Collecting Historic Season Data:
+Using `nba_collector.py` we can collect the data for every player in the league for a specific season. This data is then written to a csv file and the SQLITE DB.
+
+Running:
+  1. Start a virtual environment
+  2. Install dependencies in `requirements.txt`
+  3. Run the script: `python src/collectors/nba_collector.py --season <year eg.2024-25> `
+
 #### Features Matrix: (AI guided)
 
 | Category | Feature Name | Description |
