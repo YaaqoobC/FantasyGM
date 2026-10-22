@@ -18,8 +18,29 @@ Running:
   3. Run the script: `python src/collectors/nba_collector.py --start <start-year eg.2020> --end <end-year eg.2024>`
   4. Run the script: `python python src/database/validate.py`
 
+#### Building the Features:
+- Using build_features.py, historical game data is converted into features that can be used to train our ML models.
+- For each player, we calculate rolling averages over their last 3, 5, and 10 games, season-to-date averages, games played, and rest days.
+- Each row represents one player-game, with historical features as inputs and the actual game statistics as prediction targets.
+- Players must have at least 10 previous games in the season to be included in the training dataset.
+- The processed data is saved to data/processed/player_game_features.csv.
 
-#### Features Matrix: (AI guided)
+#### Current Features (50 Total)
+
+- 12 historical statistics: MIN, PTS, REB, AST, STL, BLK, TOV, FGM, FGA, FG3M, FTM, FTA.
+- Rolling averages (36): Last 3, 5, and 10 games for each statistic.
+- Season averages (12): Season-to-date average for each statistic.
+- Additional features (2):
+  - `games_played`: Games completed in the current season.
+  - `rest_days`: Days of rest before the game.
+
+**Total:** (12 × 3) + 12 + 2 = **50 input features**.
+
+Data Leakage:
+  - This is the issue where information that is not available during prediction is used to train the model.
+  - When building training data we cannot use the actual points for the day we are predicting.
+
+#### Objective Features Matrix: (AI guided)
 
 | Category | Feature Name | Description |
 | :--- | :--- | :--- |
@@ -80,5 +101,5 @@ Running:
   - Position eligibility (includes all position _UTIL_)
   - Players already on the roster
   - Players available through Yahoo
-  - Starting linups
-  - \# of games durring the week
+  - Starting lineups
+  - \# of games during the week
