@@ -22,7 +22,7 @@ REQUIRED_COLUMNS = [
 ]
 
 def get_season_stats(season: str):
-    print(f"[YC-LOG] Getting NBA season stats for '{season}'")
+    print(f"Getting NBA season stats for '{season}'")
 
     response = playergamelogs.PlayerGameLogs(
         season_nullable=season,
@@ -56,7 +56,7 @@ def save_raw_data(df: DataFrame, season: str):
     path = RAW_DATA_DIR / f"player_games_{season}.csv"
     df.to_csv(path, index=False)
 
-    print(f"[YC-LOG] Saved {len(df)} rows to {path}")
+    print(f"Saved {len(df)} rows to {path}")
 
 def save_database(df: DataFrame):
     """
@@ -112,14 +112,14 @@ def save_database(df: DataFrame):
             rows,
         )
 
-        print(f"[YC-LOG] Stored {len(rows)} records in database")
+        print(f"Stored {len(rows)} records in database")
 
 def import_seasons(start_year: int, end_year: int):
     for year in range(start_year, end_year +1):
         season_str = f"{year}-{str(year+1)[-2:]}" # convert to this format: 2024-25
 
         print(f"\n{'=' * 40}")
-        print(f"[YC-LOG] Importing season: {season_str}")
+        print(f"Importing season: {season_str}")
         print(f"{'=' * 40}")
 
         # Attempt each season up to three times
@@ -139,15 +139,15 @@ def import_seasons(start_year: int, end_year: int):
                 save_raw_data(df, season_str)
                 save_database(df)
 
-                print(f"[YC-LOG] Successfully imported {season_str}")
+                print(f"Successfully imported {season_str}")
                 break
 
             except Exception as exc:
-                print(f"[YC-LOG] Attempt {attempt} failed: {exc}")
+                print(f"Attempt {attempt} failed: {exc}")
 
                 if attempt == 3:
                     raise RuntimeError(
-                        f"[YC-LOG] Unable to import {season_str}"
+                        f"Unable to import {season_str}"
                     ) from exc
 
                 # Exponential backoff between retries
@@ -157,7 +157,7 @@ def import_seasons(start_year: int, end_year: int):
         if year < end_year:
             time.sleep(3)
 
-    print("\n[YC-LOG] All seasons imported successfully!")
+    print("\nAll seasons imported successfully!")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
