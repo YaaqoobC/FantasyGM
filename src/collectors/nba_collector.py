@@ -1,6 +1,7 @@
 from pathlib import Path
 import argparse
 import sqlite3
+import time
 
 from nba_api.stats.endpoints import playergamelogs
 from pandas import DataFrame
@@ -113,18 +114,67 @@ def save_database(df: DataFrame):
 
         print(f"[YC-LOG] Stored {len(rows)} records in database")
 
+def import_seasons(start_year: int, end_year: int):
+    for year in range(start_year, end_year +1):
+        season_str = f"{year}-{str(year+1)[-2:]}" # convert to this format: 2024-25
+
+        print(f"\n{'=' * 40}")
+        print(f"[YC-LOG] Importing season: {season_str}")
+        print(f"{'=' * 40}")
+
+        # Attempt each season up to three times
+        for attempt in range(1, 4):
+            try:
+                df = get_season_stats(season_str)
+
+                # Data integrity checks
+                if df[["PLAYER_ID", "GAME_ID"]].isna().any().any():
+                    raise ValueError("Missing player/game IDs")
+
+                if df.duplicated(
+                    subset=["PLAYER_ID", "GAME_ID"]
+                ).any():
+                    raise ValueError("Duplicate player-game records")
+
+                save_raw_data(df, season_str)
+                save_database(df)
+
+                print(f"[YC-LOG] Successfully imported {season_str}")
+                break
+
+            except Exception as exc:
+                print(f"[YC-LOG] Attempt {attempt} failed: {exc}")
+
+                if attempt == 3:
+                    raise RuntimeError(
+                        f"[YC-LOG] Unable to import {season_str}"
+                    ) from exc
+
+                # Exponential backoff between retries
+                time.sleep(2 ** attempt)
+
+        # Avoid rapidly sending requests to NBA.com
+        if year < end_year:
+            time.sleep(3)
+
+    print("\n[YC-LOG] All seasons imported successfully!")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--season",
-        default="2024-25",
-        help="NBA season, e.g. 2024-25"
+        "--start",
+        type=int,
+        default=2020
+    )
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=2025
     )
 
     args = parser.parse_args()
 
-    stats = get_season_stats(args.season)
-    save_raw_data(stats, args.season)
-    save_database(stats)
+    if args.start > args.end:
+        parser.error("--start cannot exceed --end")
 
-    print("[YC-LOG] Collection complete!")
+    import_seasons(args.start, args.end)
