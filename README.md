@@ -33,8 +33,9 @@ Running:
 - Additional features (2):
   - `games_played`: Games completed in the current season.
   - `rest_days`: Days of rest before the game.
+  - `is_home`: If it was a home game
 
-**Total:** (12 × 3) + 12 + 2 = **50 input features**.
+**Total:** (12 × 3) + 12 + 3 = **51 input features**.
 
 Data Leakage:
   - This is the issue where information that is not available during prediction is used to train the model.

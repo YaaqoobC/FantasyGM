@@ -1,5 +1,5 @@
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
@@ -18,7 +18,6 @@ TARGET_STATS = [
 HISTORICAL_STATS = ["min"] + TARGET_STATS
 
 ROLLING_WINDOWS = [3, 5, 10]
-
 
 def load_game_data() -> pd.DataFrame:
     """Load historical player games from SQLite."""
@@ -47,6 +46,31 @@ def load_game_data() -> pd.DataFrame:
 
     return df
 
+def add_matchup_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Extract opponent and home/away information
+    from the NBA matchup string.
+    """
+
+    df = df.copy()
+
+    # Example: "LAL vs. BOS" or "LAL @ GSW"
+    matchup_parts = df["matchup"].str.extract(
+        r"^\s*([A-Z]{3})\s+(vs\.|@)\s+([A-Z]{3})\s*$"
+    )
+
+    # Verify every matchup was parsed successfully.
+    if matchup_parts.isna().any().any():
+        raise ValueError("Invalid or missing matchup format")
+
+    df["opponent"] = matchup_parts[2]
+
+    # Home = 1, Away = 0
+    df["is_home"] = (
+        matchup_parts[1] == "vs."
+    ).astype(int)
+
+    return df
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -56,6 +80,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     df = df.copy()
+
+    # Add matchup information
+    df = add_matchup_features(df)
 
     # Process a player's history separately per season.
     groups = df.groupby(
@@ -106,7 +133,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-
 def validate_features(df: pd.DataFrame):
     """Verify our engineered data is usable."""
 
@@ -146,7 +172,6 @@ def validate_features(df: pd.DataFrame):
     if ready[TARGET_STATS].isna().any().any():
         raise ValueError("Missing prediction targets")
 
-
 def save_features(df: pd.DataFrame):
     """Save the model-ready dataset as CSV."""
 
@@ -160,7 +185,7 @@ def save_features(df: pd.DataFrame):
 
     # Explicitly identify which columns are model inputs.
     feature_columns = (
-        ["games_played", "rest_days"]
+        ["games_played", "rest_days", "is_home"]
         + [
             f"{stat}_season_avg"
             for stat in HISTORICAL_STATS
@@ -171,13 +196,13 @@ def save_features(df: pd.DataFrame):
             for window in ROLLING_WINDOWS
         ]
     )
-
     metadata_columns = [
         "player_id",
         "player_name",
         "season",
         "game_id",
-        "game_date"
+        "game_date",
+        "opponent"
     ]
 
     output_columns = (
@@ -199,7 +224,6 @@ def save_features(df: pd.DataFrame):
     print(f"Features per example: {len(feature_columns)}")
     print(f"Prediction targets: {len(TARGET_STATS)}")
     print(f"Output: {output_path}")
-
 
 if __name__ == "__main__":
     print("Loading historical NBA games...")

@@ -30,9 +30,17 @@ def test_no_future_data_leakage():
         "fg3m": [1] * 12,
         "ftm": [1] * 12,
         "fta": [2] * 12,
+        "matchup": ["LAL vs. BOS", "LAL @ GSW"] * 6,
     })
 
     result = build_features(df)
+
+    # Matchup validation
+    assert result.loc[0, "opponent"] == "BOS"
+    assert result.loc[0, "is_home"] == 1
+
+    assert result.loc[1, "opponent"] == "GSW"
+    assert result.loc[1, "is_home"] == 0
 
     # Game 4 should only use games 1, 2, and 3.
     assert result.loc[3, "pts_avg_3"] == 11.0
