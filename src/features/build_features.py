@@ -150,11 +150,26 @@ def validate_features(df: pd.DataFrame):
         for stat in HISTORICAL_STATS
     ]
 
-    expected += ["games_played", "rest_days"]
+    expected += ["games_played", "rest_days", "is_home"]
 
-    missing = set(expected) - set(df.columns)
+    missing = set(expected + ["opponent"]) - set(df.columns)
     if missing:
         raise ValueError(f"Missing features: {missing}")
+
+    # Matchup context must be valid even during the history warm-up.
+    if not df["is_home"].isin([0, 1]).all():
+        raise ValueError("is_home must contain only 0 or 1")
+
+    valid_opponents = (
+        df["opponent"].astype("string")
+        .str.fullmatch(r"[A-Z]{3}", na=False)
+    )
+    if not valid_opponents.all():
+        raise ValueError("opponent must contain three uppercase letters")
+
+    missing_targets = set(TARGET_STATS) - set(df.columns)
+    if missing_targets:
+        raise ValueError(f"Missing prediction targets: {missing_targets}")
 
     # After 10 previous games, all rolling features
     # should be available.

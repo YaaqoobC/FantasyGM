@@ -1,4 +1,5 @@
 import sys
+import unittest
 from pathlib import Path
 
 import pandas as pd
@@ -6,10 +7,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.features.build_features import build_features
+from src.features.build_features import build_features, validate_features
 
 
-def test_no_future_data_leakage():
+def make_games():
     # Simulate 12 games for a single player.
     df = pd.DataFrame({
         "player_id": [1] * 12,
@@ -33,6 +34,11 @@ def test_no_future_data_leakage():
         "matchup": ["LAL vs. BOS", "LAL @ GSW"] * 6,
     })
 
+    return df
+
+
+def test_no_future_data_leakage():
+    df = make_games()
     result = build_features(df)
 
     # Matchup validation
@@ -60,8 +66,53 @@ def test_no_future_data_leakage():
 
     assert changed.loc[11, "pts_avg_5"] == original
 
-    print("Feature engineering tests passed!")
+
+class FeatureValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.features = build_features(make_games())
+
+    def test_valid_features_and_leakage(self):
+        validate_features(self.features)
+        test_no_future_data_leakage()
+
+    def test_missing_matchup_columns(self):
+        for column in ["is_home", "opponent"]:
+            with self.subTest(column=column):
+                with self.assertRaisesRegex(ValueError, "Missing features"):
+                    validate_features(self.features.drop(columns=column))
+
+    def test_invalid_home_flags(self):
+        for value in [None, 2, -1, "1"]:
+            with self.subTest(value=value):
+                invalid = self.features.astype({"is_home": object})
+                invalid.loc[0, "is_home"] = value
+                with self.assertRaisesRegex(ValueError, "is_home"):
+                    validate_features(invalid)
+
+    def test_invalid_opponents(self):
+        for value in [None, "", "bos", "BOSTON", " BOS", 123]:
+            with self.subTest(value=value):
+                invalid = self.features.astype({"opponent": object})
+                invalid.loc[0, "opponent"] = value
+                with self.assertRaisesRegex(ValueError, "opponent"):
+                    validate_features(invalid)
+
+    def test_missing_targets(self):
+        with self.assertRaisesRegex(ValueError, "Missing prediction targets"):
+            validate_features(self.features.drop(columns="pts"))
+        self.features.loc[11, "pts"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "Missing prediction targets"):
+            validate_features(self.features)
+
+    def test_missing_history_and_empty_data(self):
+        with self.assertRaisesRegex(ValueError, "Feature dataset is empty"):
+            validate_features(self.features.iloc[:0])
+        with self.assertRaisesRegex(ValueError, "No players have sufficient history"):
+            validate_features(self.features.iloc[:10])
+        self.features.loc[11, "pts_avg_10"] = float("nan")
+        with self.assertRaisesRegex(ValueError, "Missing values"):
+            validate_features(self.features)
 
 
 if __name__ == "__main__":
-    test_no_future_data_leakage()
+    unittest.main()
