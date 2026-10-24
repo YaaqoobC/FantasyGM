@@ -1,49 +1,48 @@
 ---
 name: next-step
-description: Determine the next concrete task in FantasyGM by comparing project goals with repository implementation, tests, and outstanding decisions. Use when the user asks what to work on next, requests project prioritization, or invokes next-step.
+description: Assess FantasyGM, propose the next outcome and a concise approach, obtain approval, then implement, test, document, and summarize the approved work. Use when the user asks what to work on next, requests prioritization, or invokes next-step.
 ---
 
-# Determine the next project step
+# Next step
 
-Recommend a small, verifiable task that advances FantasyGM's goals. Use current evidence rather than repeating the last documented milestone. Invoking this skill alone requests assessment and a recommendation; implement the recommendation when the user also authorizes that work.
+Follow the project from assessment through delivery. Ground decisions in repository evidence and the user's priorities. Keep proposals and updates concise.
 
-## Establish the current state
+## 1. Determine what is needed
 
-Read `AGENTS.md`, `.agents/context/project.md`, and the relevant README sections. Incorporate the user's latest priorities and decisions; do not reopen settled decisions without new evidence.
+Read `AGENTS.md`, `.agents/context/project.md`, and relevant README sections. Inspect working-tree changes and the source/tests for the likely milestone. Distinguish implemented, verified, planned, and unknown behavior; do not mistake uncommitted work for missing work.
 
-Inspect the repository structure, working-tree changes, and source/tests relevant to the likely next milestone. Treat documentation as a guide and code as the source of implementation truth. Distinguish implemented behavior, tested behavior, planned work, and unknowns. Do not mistake uncommitted work for missing work or mark a component complete just because its file exists.
+Compare the current state with the goals: reliable NBA data, pregame predictions, fair model comparisons, league scoring, and useful roster recommendations. Resolve correctness and leakage problems before dependent work. Prefer a bounded increment that unlocks a useful result or measurable comparison. Preserve the learning goal and GRU + MLP experiments while establishing chronological evaluation and baselines first.
 
-Run focused, inexpensive checks when they resolve an uncertainty that affects the recommendation. Do not launch data imports, overwrite processed datasets, train models, or connect accounts merely to assess status. Report unavailable checks and their practical impact. Reassess documented blockers when relevant rather than assuming an old environment failure still applies.
+Run focused, inexpensive checks when they affect the recommendation. Recheck relevant old blockers rather than assuming they persist. Assessment alone does not authorize imports, dataset overwrites, model training, or account connections.
 
-## Choose the next increment
+## 2. Propose the outcome
 
-Compare the current state with the end-to-end goal: reliable historical data, pregame features, reproducible prediction experiments, league scoring, current NBA/Yahoo context, and usable roster recommendations.
+State one recommended goal in terms of the capability or result it enables. Explain briefly why it matters now, citing the relevant implementation and verification evidence.
 
-Use these decision criteria:
+For example: "Give predictions pregame context about the opponent's recent scoring defense." A function name or a list of files to edit is an implementation detail, not the goal. Do not promise better prediction accuracy until evaluation demonstrates it.
 
-- Resolve correctness or data-leakage problems that invalidate the next milestone before adding dependent functionality.
-- Check prerequisites and prefer tasks that unlock a meaningful result or measurable comparison.
-- Favor a bounded change with clear acceptance criteria, suitable tests, and data already available.
-- Balance the functional product and learning goals. Preserve the GRU + MLP experimentation goal while establishing chronological evaluation and a baseline before judging complex models.
-- Avoid endless feature expansion, speculative infrastructure, or architecture complexity without a concrete need. A documented roadmap is a starting point, not a reason to ignore evidence or changed priorities.
+Define observable acceptance criteria and a clear scope boundary. Mention alternatives only when they involve a meaningful tradeoff. Avoid speculative infrastructure or endless feature expansion.
 
-Select one recommended task. Mention alternatives only when they represent a meaningful tradeoff. If a blocker matters, propose the smallest diagnostic or repair that makes progress; identify work that can proceed independently.
+## 3. Propose the approach
 
-## Involve the user in consequential decisions
+Explain how to achieve the outcome in a few bullets: the main change, dependencies or important assumptions, tests, and documentation updates. Include material tradeoffs without turning the proposal into an implementation walkthrough.
 
-Ask for input when an unresolved choice materially changes product scope, milestone priorities, architecture, data contracts, evaluation design, paid services, or account access. Examples include prioritizing Yahoo integration over model evaluation, changing season-boundary history, or selecting a different prediction target.
+## 4. Obtain approval
 
-First provide the evidence, your recommendation, and concrete options with their consequences. Ask one focused question, using the available user-input tool when appropriate. State what depends on the answer and continue useful independent assessment while waiting. Do not treat silence as a decision.
+Present a concrete, reviewable proposal before requesting approval to implement it. Ask one focused question about the proposed outcome and approach, then wait for the user's response before dependent implementation. Silence is not approval.
 
-Routine implementation details, naming, and straightforward prerequisites do not require a new decision. Respect existing authorization; do not add an approval gate to work the user already requested. For a decision outside that authorization, wait for the answer before dependent implementation. Explain the actual tradeoff behind any question rather than requesting generic confirmation.
+Approval already given in the conversation counts: when the user accepts a proposal or explicitly requests its implementation, continue without asking again. This skill does not add approval gates to routine details within the agreed scope.
 
-## Deliver a useful recommendation
+For unresolved decisions that materially change scope, priorities, architecture, data contracts, evaluation design, cost, or account access, explain the consequences and recommend an option. Get the user's decision before dependent work; continue useful independent work while waiting. Do not reopen settled decisions without new evidence.
 
-Keep the result concise and grounded in inspected files:
+## 5. Deliver the approved work
 
-- State the next task and why it matters now.
-- Summarize the evidence for what is already done and any relevant verification limits.
-- Define the bounded deliverable, key dependencies, and observable acceptance criteria, including appropriate tests.
-- Surface a human decision only if one remains unresolved; otherwise give an actionable recommendation without a ceremonial approval question.
+Use the applicable repository skill, such as `add-historic-features`, and complete the approved scope. Make focused, maintainable changes; preserve unrelated working behavior and user edits.
 
-When implementation is also authorized, follow the applicable repository skill, such as `add-historic-features`, and complete the scoped work. Update `.agents/context/project.md` when verified implementation or an explicit user decision changes the project state. Do not record a recommendation as completed work or an unchosen option as an agreed plan.
+Add meaningful tests for the changed behavior and run the relevant checks. Resolve failures caused by the change. Update documentation and `.agents/context/project.md` when verified behavior, data contracts, milestones, or explicit decisions change. Keep planned and completed work separate.
+
+If new evidence makes the approved approach unsuitable, explain the issue and propose a scoped adjustment. Seek a new decision only when it materially changes the agreement. Report external or environment blockers accurately; do not claim unrun checks passed.
+
+## 6. Summarize the result
+
+Lead with the outcome delivered. Briefly state what changed, how it was verified, and any remaining limitation or unfinished acceptance criterion. Explain important ML reasoning when useful, without narrating every edit. Do not claim completion while required work remains.
