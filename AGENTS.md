@@ -41,6 +41,8 @@ For project prioritization or requests to determine the next task, read [.agents
 
 For requests to add or modify historical player, team, or opponent features, read [.agents/skills/add-historic-features/SKILL.md](.agents/skills/add-historic-features/SKILL.md).
 
+For independent multi-agent code review with majority-voted findings and structured reports for a fixing pipeline, read [.agents/skills/code-review-board/SKILL.md](.agents/skills/code-review-board/SKILL.md).
+
 ## Checks
 
 Run `PYTHONDONTWRITEBYTECODE=1 fantasy_gm_env/bin/python tests/test_features.py` from the repository root. The tests use standard-library unittest and pandas; pytest is not required.

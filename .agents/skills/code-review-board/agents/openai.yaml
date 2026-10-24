@@ -1,0 +1,4 @@
+interface:
+  display_name: "Code Review Board"
+  short_description: "Independent reviews with majority-voted findings"
+  default_prompt: "Use $code-review-board to review the current changes and return majority-approved comments plus a JSON report for a fixing pipeline."
