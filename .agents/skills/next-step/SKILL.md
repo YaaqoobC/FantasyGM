@@ -1,6 +1,6 @@
 ---
 name: next-step
-description: Assess FantasyGM, propose the next outcome and a concise approach, obtain approval, then implement, test, document, and summarize the approved work. Use when the user asks what to work on next, requests prioritization, or invokes next-step.
+description: Assess FantasyGM, propose the next outcome and a concise approach, obtain approval, then implement, test, document, explain in depth, and summarize the approved work. Use when the user asks what to work on next, requests prioritization, or invokes next-step.
 ---
 
 # Next step
@@ -45,8 +45,20 @@ Add meaningful tests for the changed behavior and run the relevant checks. Resol
 
 If new evidence makes the approved approach unsuitable, explain the issue and propose a scoped adjustment. Seek a new decision only when it materially changes the agreement. Report external or environment blockers accurately; do not claim unrun checks passed.
 
-## 6. Summarize the result
+## 6. Explain the completed work
 
-Lead with the outcome delivered. Explain what the system now does, how it works, and why it matters in plain language. Use a short concrete example when it helps the user understand a calculation or behavior. Name the important assumptions and design choices, especially what data is included or excluded and how leakage is prevented.
+Deliver this explanation proactively after implementation and verification; do not wait for the user to ask how it works. This is a learning project, so a short change log or test count alone does not complete delivery.
 
-State how the change was verified, whether saved datasets were regenerated, and any remaining limitation or unfinished acceptance criterion. Test counts and feature counts support the explanation; they do not replace it. Keep the explanation concise but complete enough for this learning project. Do not claim completion while required work remains.
+Explain the following as they apply to the change:
+
+- What capability was added or changed, and why that outcome matters.
+- How the relevant inputs become outputs, including important calculations, assumptions, and design choices. Use a concrete worked example for meaningful feature or modeling changes; link the relevant code without giving a line-by-line Python tutorial.
+- For modeling work, what prediction rule or algorithm was actually used, whether anything was trained, what it learned from, and which available inputs it actually uses. Distinguish implemented machinery from measured improvements.
+- For experiments, what the partitions, eligibility rules, metrics, and reported values mean. Explain how leakage is prevented, what the evidence supports, and what remains unknown.
+- How to run the delivered work, what it reads or writes, how it was verified, and material limitations.
+
+Use plain language and define unfamiliar ML terms when introduced. Scale depth to the change: explain consequential modeling decisions thoroughly, while keeping a small documentation or naming change brief. Concise means removing filler, not skipping the reasoning needed to understand the work. Keep reusable explanations in the relevant project documentation and link them; do not copy tutorials into project context.
+
+## 7. Summarize the result
+
+Lead the final response with the delivered outcome, followed by the explanation from stage 6 and actual verification results. Organize these as one coherent response rather than repeating a summary and a tutorial. State whether saved datasets were regenerated and any remaining limitation or unfinished acceptance criterion. Do not claim completion while required work remains.

@@ -107,6 +107,53 @@ Data Leakage:
 - Using the points breakdown of a specific fantasy league, the stats will be converted into _Fantasy Points_ using the corresponding weights.
 - This process can be repeated and aggregated for the week.
 
+### First prediction benchmark
+
+Run from the repository root:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 fantasy_gm_env/bin/python -m src.evaluation.baseline
+```
+
+Direct execution is also supported: `python src/evaluation/baseline.py` with the project environment activated. Both commands produce the same report.
+
+This predicts each of the 11 statistics using the player's previous 10 games in the same season. For example, if a player's last 10 games average 20 points, the next prediction is 20 points. No parameters are fitted and no scaling or encoding is needed.
+
+The split is fixed: **2020-21 through 2023-24 for training**, **2024-25 for validation**, and **2025-26 reserved for final testing**. The baseline does not fit on the training partition; that partition is established for future model comparisons. Season dates must be ordered and cannot overlap, including on the same calendar day. Missing or unexpected seasons raise an error rather than silently changing the split.
+
+The command opens SQLite read-only, checks season/date metadata, and loads only training and validation game results. It builds features in memory and prints a JSON report with source/eligible/excluded row counts, date ranges, and validation MAE/RMSE for every statistic and fantasy points. It does not score the reserved test season or overwrite the existing processed CSV. Use `--db /path/to/nba.db` for another database following the same contract.
+
+**MAE** is the average absolute prediction error; **RMSE** gives more weight to large misses. Lower is better. Fantasy scoring is applied separately to predicted and actual stat lines, then their difference is measured. The documented league formula is `2*fgm - fga + ftm - fta + fg3m + pts + reb + 2*ast + 4*stl + 4*blk - 2*tov`.
+
+Evaluation follows the season game by game: earlier completed validation games may inform later predictions, while the current game's results cannot inform its own prediction. History resets each season. Only recorded player appearances with at least 10 previous player games and 10 previous opponent games are evaluated, matching the existing feature pipeline's eligibility rules. Non-appearances, early-season games, and some low-history players are outside this benchmark.
+
+The baseline uses only player stat averages. It does not use the experimental opponent signal, so these results cannot establish that signal's usefulness. Future models should use the same eligible examples and split; selecting features or models belongs on validation data, with the test set reserved for final evaluation.
+
+Validation run on 2026-10-23: **20,868 eligible player-games** from 2024-25, with 5,438 excluded by history warm-up. The four training seasons contain 80,128 eligible examples, unused for fitting this baseline. Errors below are per player appearance and rounded to three decimals:
+
+| Statistic | MAE | RMSE |
+| --- | ---: | ---: |
+| Points | 4.786 | 6.266 |
+| Rebounds | 1.985 | 2.619 |
+| Assists | 1.397 | 1.899 |
+| Steals | 0.745 | 0.971 |
+| Blocks | 0.525 | 0.760 |
+| Turnovers | 0.922 | 1.221 |
+| Field goals made | 1.834 | 2.394 |
+| Field goals attempted | 2.891 | 3.789 |
+| Three-pointers made | 0.928 | 1.306 |
+| Free throws made | 1.332 | 1.880 |
+| Free throws attempted | 1.614 | 2.230 |
+| Fantasy points | 10.239 | 13.125 |
+
+These establish a reference, not evidence that predictions are adequate for roster decisions. The test season has not been evaluated.
+
+Run the focused benchmark tests with:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 fantasy_gm_env/bin/python tests/test_baseline.py
+```
+
 ## Pick Optimizer:
 - Given a large data set of different players and different predicted Fantasy Points, this layer must determine which player(s) are the best for the current situation.
 - Some constraints we would factor, include (but not limited to):

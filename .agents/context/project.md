@@ -13,6 +13,7 @@ FantasyGM predicts 11 next-game NBA statistics and uses league scoring to suppor
 - `opponent` is categorical metadata extracted from matchup strings alongside `is_home`.
 - Validation checks required inputs, valid matchup context, sufficient history, and nonmissing training-ready inputs/targets.
 - `tests/test_features.py`: 13 tests covering matchup, player/opponent averages, leakage, opponent identity, join cardinality, ordering, season resets, warm-up, invalid data, validation, and temporary CSV export.
+- `src/evaluation/baseline.py`: read-only, in-memory 10-game player-average validation benchmark with league scoring, per-stat/fantasy MAE and RMSE, fixed season partitions, eligibility counts, and date-order checks. `tests/test_baseline.py` adds 9 focused tests for scoring, errors, partition boundaries, reserved test isolation, reproducibility, warm-up, and leakage.
 
 ## Data contracts
 
@@ -33,9 +34,17 @@ Before retaining it, compare the same model with and without the input using ide
 
 Opponent points allowed is implemented. Further defense metrics remain optional future work; prediction benefits have not yet been measured.
 
-Following milestones: chronological splits, league scoring, rolling-average baseline, XGBoost/MLP comparisons, GRU, and hybrid GRU + MLP. Compare on the same splits using per-stat MAE/RMSE and fantasy-point error. Yahoo integration and roster optimization follow; architecture complexity must earn its place through measured performance.
+Chronological season splits, league scoring, and a rolling-average validation baseline are implemented. Remaining modeling milestones: XGBoost/MLP comparisons, GRU, and hybrid GRU + MLP. Compare on the same splits and eligible rows using per-stat MAE/RMSE and fantasy-point error. Yahoo integration and roster optimization follow; architecture complexity must earn its place through measured performance.
 
 League scoring from the handoff: `2*fgm - fga + ftm - fta + fg3m + pts + reb + 2*ast + 4*stl + 4*blk - 2*tov`.
+
+## Evaluation contract and baseline result
+
+Approved split: training 2020-21 through 2023-24, validation 2024-25, reserved test 2025-26. Boundaries are explicit constants and actual season dates must be strictly ordered without shared calendar days. Missing/unexpected seasons are errors. The benchmark checks season/date metadata, loads only train/validation statistics from SQLite in read-only mode, and builds current features in memory without overwriting the processed CSV. It never evaluates the reserved test season.
+
+Each next-game prediction is the player's prior 10-game mean for each target. No parameters or preprocessing are fitted. Earlier completed validation games may inform later validation predictions; the current game's outcome cannot inform its own prediction. Seasonal history and existing player/opponent warm-up eligibility are unchanged. Baseline predictions do not use opponent points allowed, so the experiment does not evaluate that feature's predictive value.
+
+On 2026-10-23, the benchmark evaluated 20,868 eligible validation player-games (5,438 excluded by warm-up). The training partition contains 80,128 eligible examples. Validation MAE: points 4.786, rebounds 1.985, assists 1.397, fantasy points 10.239; fantasy RMSE 13.125. Full per-stat results and the reproducible command are in [README.md](../../README.md#first-prediction-benchmark). All 9 benchmark tests and 13 existing feature tests passed. Both module and direct-script entry points are supported and produce identical reports on synthetic fixtures; direct execution also works outside the repository when given an absolute script path and --db path. These results measure recorded appearances after warm-up, not non-appearances, availability, or roster quality. The test season remains reserved.
 
 ## Verification and limitations
 
