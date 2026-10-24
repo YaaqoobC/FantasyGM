@@ -18,6 +18,21 @@ TARGET_STATS = [
 HISTORICAL_STATS = ["min"] + TARGET_STATS
 
 ROLLING_WINDOWS = [3, 5, 10]
+HISTORY_GAMES = 10
+# EXPERIMENTAL: predictive value is unverified. This mixes defense with pace,
+# schedule strength, overtime, and lineup changes; it is not defensive rating.
+# Compare the same model with/without this input on identical chronological
+# splits and rows before deciding whether to retain it.
+OPPONENT_FEATURE = "opponent_pts_allowed_avg_10"
+FEATURE_COLUMNS = (
+    ["games_played", "rest_days", "is_home", OPPONENT_FEATURE]
+    + [f"{stat}_season_avg" for stat in HISTORICAL_STATS]
+    + [
+        f"{stat}_avg_{window}"
+        for stat in HISTORICAL_STATS
+        for window in ROLLING_WINDOWS
+    ]
+)
 
 def load_game_data() -> pd.DataFrame:
     """Load historical player games from SQLite."""
@@ -72,6 +87,92 @@ def add_matchup_features(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def add_opponent_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate complete player logs into pregame opponent defense."""
+    required = [
+        "player_id", "game_id", "season", "game_date", "team_id",
+        "matchup", "opponent", "pts",
+    ]
+    missing = set(required) - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing opponent feature source columns: {missing}")
+    if df[required].isna().any().any():
+        raise ValueError("Missing values in opponent feature source data")
+    if df.duplicated(["player_id", "game_id"]).any():
+        raise ValueError("Duplicate player-game records")
+    if (
+        not pd.api.types.is_numeric_dtype(df["pts"])
+        or df["pts"].isin([float("inf"), float("-inf")]).any()
+        or (df["pts"] < 0).any()
+    ):
+        raise ValueError("Points must be finite nonnegative numbers")
+
+    # Do not filter players by history before computing team totals.
+    source = df.assign(team=df["matchup"].str.split().str[0])
+    keys = ["season", "game_id", "team_id"]
+    grouped = source.groupby(keys, sort=False)
+    if grouped[["game_date", "team", "opponent"]].nunique().ne(1).any().any():
+        raise ValueError("Inconsistent team-game date or matchup")
+    teams = grouped.agg(
+        game_date=("game_date", "first"),
+        team=("team", "first"),
+        opponent=("opponent", "first"),
+        points=("pts", "sum"),
+    ).reset_index()
+    if teams.groupby(["season", "game_id"]).size().ne(2).any():
+        raise ValueError("Each game must contain exactly two teams")
+    if teams.duplicated(["season", "game_id", "team"]).any():
+        raise ValueError("Team abbreviations must identify one team per game")
+
+    # A team's points allowed are its opponent's scored points.
+    opponents = teams[
+        ["season", "game_id", "team", "opponent", "game_date", "points"]
+    ].rename(columns={
+        "team": "opponent", "opponent": "opponent_of_opponent",
+        "game_date": "opponent_game_date", "points": "points_allowed",
+    })
+    teams = teams.merge(
+        opponents, on=["season", "game_id", "opponent"],
+        how="left", validate="one_to_one",
+    )
+    if (
+        teams["team"].ne(teams["opponent_of_opponent"]).any()
+        or teams["game_date"].ne(teams["opponent_game_date"]).any()
+        or teams["points_allowed"].isna().any()
+    ):
+        raise ValueError("Game opponents must have reciprocal matchups and dates")
+
+    teams = teams.sort_values(["team_id", "season", "game_date", "game_id"])
+    # With dates rather than tipoff times, same-day ordering is ambiguous.
+    if teams.duplicated(["team_id", "season", "game_date"]).any():
+        raise ValueError("A team cannot have multiple games on the same date")
+    history = teams.groupby(["team_id", "season"], sort=False)
+    teams["opponent_games_played"] = history.cumcount()
+    teams[OPPONENT_FEATURE] = history["points_allowed"].transform(
+        lambda s: s.shift(1).rolling(HISTORY_GAMES, min_periods=HISTORY_GAMES).mean()
+    )
+
+    # Join the upcoming opponent's history, not the player's own team's history.
+    summaries = teams[
+        ["season", "game_id", "team", "opponent_games_played", OPPONENT_FEATURE]
+    ].rename(columns={"team": "opponent"})
+    result = df.merge(
+        summaries, on=["season", "game_id", "opponent"],
+        how="left", validate="many_to_one", sort=False,
+    )
+    if len(result) != len(df) or result["opponent_games_played"].isna().any():
+        raise ValueError("Opponent join must preserve every player-game")
+    result.index = df.index
+    return result
+
+
+def training_ready_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Require complete player and opponent histories without future imputation."""
+    return df[
+        (df["games_played"] >= HISTORY_GAMES)
+        & (df["opponent_games_played"] >= HISTORY_GAMES)
+    ]
+
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Construct pregame features using historical games only.
@@ -80,9 +181,14 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     df = df.copy()
+    df["game_date"] = pd.to_datetime(df["game_date"], format="mixed", errors="raise")
+    df = df.sort_values(
+        ["player_id", "season", "game_date", "game_id"]
+    ).reset_index(drop=True)
 
     # Add matchup information
     df = add_matchup_features(df)
+    df = add_opponent_features(df)
 
     # Process a player's history separately per season.
     groups = df.groupby(
@@ -139,20 +245,9 @@ def validate_features(df: pd.DataFrame):
     if df.empty:
         raise ValueError("Feature dataset is empty")
 
-    expected = [
-        f"{stat}_avg_{window}"
-        for stat in HISTORICAL_STATS
-        for window in ROLLING_WINDOWS
-    ]
+    expected = FEATURE_COLUMNS
 
-    expected += [
-        f"{stat}_season_avg"
-        for stat in HISTORICAL_STATS
-    ]
-
-    expected += ["games_played", "rest_days", "is_home"]
-
-    missing = set(expected + ["opponent"]) - set(df.columns)
+    missing = set(expected + ["opponent", "opponent_games_played"]) - set(df.columns)
     if missing:
         raise ValueError(f"Missing features: {missing}")
 
@@ -171,9 +266,14 @@ def validate_features(df: pd.DataFrame):
     if missing_targets:
         raise ValueError(f"Missing prediction targets: {missing_targets}")
 
-    # After 10 previous games, all rolling features
-    # should be available.
-    ready = df[df["games_played"] >= 10]
+    if (
+        df["opponent_games_played"].isna().any()
+        or (df["opponent_games_played"] < 0).any()
+    ):
+        raise ValueError("Invalid opponent history counts")
+
+    # Warm-up is evaluated separately for player and opponent history.
+    ready = training_ready_rows(df)
 
     if ready.empty:
         raise ValueError("No players have sufficient history")
@@ -182,6 +282,11 @@ def validate_features(df: pd.DataFrame):
         raise ValueError(
             "Missing values in training-ready features"
         )
+    if (
+        ready[OPPONENT_FEATURE].isin([float("inf"), float("-inf")]).any()
+        or (ready[OPPONENT_FEATURE] < 0).any()
+    ):
+        raise ValueError("Opponent points allowed must be finite and nonnegative")
 
     # Every target must also be available.
     if ready[TARGET_STATS].isna().any().any():
@@ -195,22 +300,11 @@ def save_features(df: pd.DataFrame):
         exist_ok=True
     )
 
-    # Require 10 previous games for our first experiment.
-    df = df[df["games_played"] >= 10].copy()
+    validate_features(df)
+    df = training_ready_rows(df).copy()
 
     # Explicitly identify which columns are model inputs.
-    feature_columns = (
-        ["games_played", "rest_days", "is_home"]
-        + [
-            f"{stat}_season_avg"
-            for stat in HISTORICAL_STATS
-        ]
-        + [
-            f"{stat}_avg_{window}"
-            for stat in HISTORICAL_STATS
-            for window in ROLLING_WINDOWS
-        ]
-    )
+    feature_columns = FEATURE_COLUMNS
     metadata_columns = [
         "player_id",
         "player_name",

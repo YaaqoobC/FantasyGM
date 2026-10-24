@@ -31,7 +31,9 @@ Explain how to achieve the outcome in a few bullets: the main change, dependenci
 
 Present a concrete, reviewable proposal before requesting approval to implement it. Ask one focused question about the proposed outcome and approach, then wait for the user's response before dependent implementation. Silence is not approval.
 
-Approval already given in the conversation counts: when the user accepts a proposal or explicitly requests its implementation, continue without asking again. This skill does not add approval gates to routine details within the agreed scope.
+Invoking `next-step` requests assessment and a proposal; it does not itself approve implementation. End the proposal with a focused approval question and wait. Before asking, identify the exact approval requirement in this skill and link it so the user understands the pause.
+
+Existing approval counts only when it clearly covers the specific proposal and scope being executed. Do not infer implementation approval from an earlier general "let's do this," approval to edit the workflow, or invocation of the skill. If approval clearly covers this proposal, continue without asking again; routine implementation details within that scope need no additional approval.
 
 For unresolved decisions that materially change scope, priorities, architecture, data contracts, evaluation design, cost, or account access, explain the consequences and recommend an option. Get the user's decision before dependent work; continue useful independent work while waiting. Do not reopen settled decisions without new evidence.
 
@@ -45,4 +47,6 @@ If new evidence makes the approved approach unsuitable, explain the issue and pr
 
 ## 6. Summarize the result
 
-Lead with the outcome delivered. Briefly state what changed, how it was verified, and any remaining limitation or unfinished acceptance criterion. Explain important ML reasoning when useful, without narrating every edit. Do not claim completion while required work remains.
+Lead with the outcome delivered. Explain what the system now does, how it works, and why it matters in plain language. Use a short concrete example when it helps the user understand a calculation or behavior. Name the important assumptions and design choices, especially what data is included or excluded and how leakage is prevented.
+
+State how the change was verified, whether saved datasets were regenerated, and any remaining limitation or unfinished acceptance criterion. Test counts and feature counts support the explanation; they do not replace it. Keep the explanation concise but complete enough for this learning project. Do not claim completion while required work remains.

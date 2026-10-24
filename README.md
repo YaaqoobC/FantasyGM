@@ -22,20 +22,31 @@ Running:
 - Using build_features.py, historical game data is converted into features that can be used to train our ML models.
 - For each player, we calculate rolling averages over their last 3, 5, and 10 games, season-to-date averages, games played, and rest days.
 - Each row represents one player-game, with historical features as inputs and the actual game statistics as prediction targets.
-- Players must have at least 10 previous games in the season to be included in the training dataset.
+- Players and their upcoming opponents must each have at least 10 previous games in the season to be included in the training dataset.
 - The processed data is saved to data/processed/player_game_features.csv.
 
-#### Current Features (50 Total)
+#### Current Features (52 Total)
 
 - 12 historical statistics: MIN, PTS, REB, AST, STL, BLK, TOV, FGM, FGA, FG3M, FTM, FTA.
 - Rolling averages (36): Last 3, 5, and 10 games for each statistic.
 - Season averages (12): Season-to-date average for each statistic.
-- Additional features (2):
+- Additional features (4):
   - `games_played`: Games completed in the current season.
   - `rest_days`: Days of rest before the game.
   - `is_home`: If it was a home game
+  - `opponent_pts_allowed_avg_10` (**experimental; predictive value unverified**): Points allowed per game by the upcoming opponent over its previous 10 team games.
 
-**Total:** (12 × 3) + 12 + 3 = **51 input features**.
+**Total:** (12 × 3) + 12 + 4 = **52 input features**.
+
+Opponent defense is calculated from complete player logs: player points are summed into team-game totals, paired with the opposing team, and averaged over strictly earlier games. Team and player history reset each season. This measures scoring allowed per game; it is not adjusted for pace or opponent strength.
+
+**Feature quality flag:** Treat this as a coarse scoring-environment signal, not a reliable measure of defense or a proven predictor of individual player stats. Pace, opponent quality, overtime, and lineup changes can affect it, and the 10-game window has not been tuned. Before retaining it, compare the same model with and without this input on identical chronological splits and eligible rows, using per-statistic and fantasy-point errors. Choose using validation results and reserve the test set for final evaluation. It remains included in the pipeline pending evaluation.
+
+`opponent` remains categorical metadata. An internal `opponent_games_played` count controls the 10-game warm-up; it is not an exported model input. Rows without enough player or opponent history remain in memory but are excluded from the training CSV. Historical values are never filled using future games.
+
+The pipeline rejects duplicate player-games, incomplete or inconsistent game pairings, and multiple games for one team on the same date. Each source game must contain the full player logs for both teams; pairing checks cannot detect individual missing player records.
+
+Run the feature tests with `PYTHONDONTWRITEBYTECODE=1 fantasy_gm_env/bin/python tests/test_features.py`. They check historical averages, opponent identity, leakage, season resets, validation, and CSV export using synthetic games.
 
 Data Leakage:
   - This is the issue where information that is not available during prediction is used to train the model.
