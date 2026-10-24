@@ -28,6 +28,7 @@ Read [.agents/context/project.md](.agents/context/project.md) for the project st
 - Lead proposals with the outcome and why it matters; describe the implementation approach separately and briefly.
 - Explain consequential ML reasoning and tradeoffs when needed, without verbose tutorials or narration of routine edits.
 - Treat explanations as part of delivery. Explain meaningful changes in enough depth to understand what was done, how it works, why it was chosen, and what results mean. Use concrete examples, distinguish fixed statistical rules from trained models, and state limitations. Keep the language concise; scale depth to the change rather than omitting necessary detail.
+- Make prediction validation visual as well as numerical. Provide charts that support inspecting individual predictions, error distributions, and patterns over time, with clear units, sample sizes, and explanations. Keep validation and reserved test data separate in reports.
 - Keep durable project state in `.agents/context/project.md`, working rules here, and reusable task workflows in skills. Link to the source rather than copying the same instructions between files.
 - Record verified outcomes and explicit decisions, including relevant limitations. Do not record suggestions as approved plans or planned work as complete.
 - Read relevant context before acting, reuse settled decisions, and update stale context when new evidence changes it. Load additional files only as needed for the current task.

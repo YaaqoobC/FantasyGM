@@ -1,13 +1,19 @@
 
 import sqlite3
+import logging
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = ROOT / "data" / "nba.db"
 
+LOGGER = logging.getLogger(__name__)
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+
+LOGGER.info("Starting database validation: %s", DB_PATH)
 with sqlite3.connect(DB_PATH) as conn:
     # How many records do we have per season?
-    print("Records per season:")
+    LOGGER.info("Counting records and players per season")
 
     query = """
         SELECT season,
@@ -19,7 +25,7 @@ with sqlite3.connect(DB_PATH) as conn:
     """
 
     for season, games, players in conn.execute(query):
-        print(f"{season}: {games} records, {players} players")
+        LOGGER.info("%s: %s records, %s players", season, f"{games:,}", players)
 
     # Check for duplicate player-game records
     duplicate_query = """
@@ -32,8 +38,9 @@ with sqlite3.connect(DB_PATH) as conn:
         )
     """
 
+    LOGGER.info("Checking for duplicate player-game records")
     duplicates = conn.execute(duplicate_query).fetchone()[0]
-    print(f"\nDuplicate records: {duplicates}")
+    LOGGER.info("Duplicate records: %s", duplicates)
 
     # Check for impossible shooting statistics
     invalid_query = """
@@ -46,10 +53,11 @@ with sqlite3.connect(DB_PATH) as conn:
            OR ast < 0
     """
 
+    LOGGER.info("Checking for impossible shooting and negative statistics")
     invalid = conn.execute(invalid_query).fetchone()[0]
-    print(f"Invalid stat records: {invalid}")
+    LOGGER.info("Invalid stat records: %s", invalid)
 
     assert duplicates == 0
     assert invalid == 0
 
-    print("\nBasic validation passed!")
+    LOGGER.info("Basic database validation passed")

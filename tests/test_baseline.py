@@ -1,4 +1,5 @@
 import math
+import json
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -34,6 +35,66 @@ def development_games(include_test=False):
 
 
 class BaselineTests(unittest.TestCase):
+    def test_visual_report_contains_only_eligible_validation_predictions(self):
+        from html.parser import HTMLParser
+
+        class ReportParser(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_payload = False
+                self.payload = ""
+
+            def handle_starttag(self, tag, attrs):
+                self.in_payload = tag == "script" and dict(attrs).get("id") == "report-data"
+
+            def handle_endtag(self, tag):
+                if tag == "script":
+                    self.in_payload = False
+
+            def handle_data(self, data):
+                if self.in_payload:
+                    self.payload += data
+
+        games = development_games()
+        # Treat names as text even when they contain HTML-sensitive characters.
+        games["player_name"] = "Player </script><script>alert(1)</script>"
+        with TemporaryDirectory() as directory:
+            summary = run_baseline(games, report_dir=directory)
+            html = Path(summary["visual_report"]).read_text()
+            parser = ReportParser()
+            parser.feed(html)
+            payload = json.loads(parser.payload)
+            saved = json.loads((Path(directory) / "metrics.json").read_text())
+        self.assertEqual(len(payload["rows"]), 16)
+        self.assertEqual(payload["statistics"], [*TARGET_STATS, "fantasy_points"])
+        self.assertEqual(saved["validation_metrics"], summary["validation_metrics"])
+        for row in payload["rows"]:
+            self.assertTrue(row["game_id"].startswith(VALIDATION_SEASON))
+            self.assertEqual(row["player_name"], "Player </script><script>alert(1)</script>")
+        actual = pd.DataFrame([row["actual"] for row in payload["rows"]])
+        predicted = pd.DataFrame([row["predicted"] for row in payload["rows"]])
+        self.assertEqual(evaluate_predictions(actual, predicted), summary["validation_metrics"])
+        self.assertNotIn("__REPORT_DATA__", html)
+        self.assertIn("plotly.js", html.lower())
+
+    def test_visual_report_rejects_test_rows_and_misaligned_predictions(self):
+        from src.evaluation.reporting import write_validation_report
+
+        features = training_ready_rows(build_features(development_games()))
+        validation = features[features["season"] == VALIDATION_SEASON]
+        actual = validation[TARGET_STATS].copy()
+        predicted = rolling_predictions(validation)
+        for frame in [actual, predicted]:
+            frame["fantasy_points"] = fantasy_points(frame)
+        summary = run_baseline(development_games())
+        with TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "align"):
+                write_validation_report(summary, validation, actual, predicted.iloc[::-1], directory)
+            with self.assertRaisesRegex(ValueError, "validation rows only"):
+                write_validation_report(
+                    summary, validation.assign(season=TEST_SEASON), actual, predicted, directory
+                )
+
     def test_script_and_module_commands_produce_the_same_report(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "games.db"
@@ -42,16 +103,44 @@ class BaselineTests(unittest.TestCase):
                     "player_game_stats", connection, index=False
                 )
             script = subprocess.run(
-                [sys.executable, str(ROOT / "src/evaluation/baseline.py"), "--db", str(path)],
+                [sys.executable, str(ROOT / "src/evaluation/baseline.py"), "--db", str(path), "--no-report"],
                 cwd=directory, capture_output=True, text=True, timeout=30,
             )
             module = subprocess.run(
-                [sys.executable, "-m", "src.evaluation.baseline", "--db", str(path)],
+                [sys.executable, "-m", "src.evaluation.baseline", "--db", str(path), "--no-report"],
                 cwd=ROOT, capture_output=True, text=True, timeout=30,
             )
         self.assertEqual(script.returncode, 0, script.stderr)
         self.assertEqual(module.returncode, 0, module.stderr)
         self.assertEqual(script.stdout, module.stdout)
+        self.assertEqual(json.loads(script.stdout)["validation_season"], VALIDATION_SEASON)
+        for result in [script, module]:
+            self.assertIn("Loading training and validation game results", result.stderr)
+            self.assertIn("Building pts history", result.stderr)
+            self.assertIn("Benchmark complete", result.stderr)
+            self.assertNotIn("Open in browser", result.stderr)
+
+    def test_command_logs_report_progress_and_prints_browser_command(self):
+        with TemporaryDirectory() as directory:
+            database = Path(directory) / "games.db"
+            report_dir = Path(directory) / "visual reports"
+            with sqlite3.connect(database) as connection:
+                development_games(include_test=True).to_sql(
+                    "player_game_stats", connection, index=False
+                )
+            result = subprocess.run(
+                [sys.executable, "-m", "src.evaluation.baseline", "--db", str(database),
+                 "--report-dir", str(report_dir)],
+                cwd=ROOT, capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            summary = json.loads(result.stdout)
+            self.assertTrue(Path(summary["visual_report"]).is_file())
+            self.assertIn("Preparing visual report", result.stderr)
+            self.assertIn("Visual report saved", result.stderr)
+            self.assertIn("Open in browser (WSL)", result.stderr)
+            self.assertIn('explorer.exe "$(wslpath -w ', result.stderr)
+            self.assertIn(str(report_dir / "index.html"), result.stderr)
 
     def test_fantasy_scoring_weights(self):
         # Score one unit of each statistic independently, including penalties.

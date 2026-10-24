@@ -1,8 +1,10 @@
 import sqlite3
+import logging
 from pathlib import Path
 
 import pandas as pd
 
+LOGGER = logging.getLogger(__name__)
 # Project paths
 ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = ROOT / "data" / "nba.db"
@@ -40,6 +42,7 @@ def load_game_data() -> pd.DataFrame:
     if not DB_PATH.exists():
         raise FileNotFoundError(f"Database not found: {DB_PATH}")
 
+    LOGGER.info("Loading historical games from %s", DB_PATH)
     with sqlite3.connect(DB_PATH) as conn:
         df = pd.read_sql_query(
             "SELECT * FROM player_game_stats",
@@ -59,6 +62,7 @@ def load_game_data() -> pd.DataFrame:
         ["player_id", "season", "game_date", "game_id"]
     ).reset_index(drop=True)
 
+    LOGGER.info("Loaded %s player-game records", f"{len(df):,}")
     return df
 
 def add_matchup_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -186,8 +190,10 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         ["player_id", "season", "game_date", "game_id"]
     ).reset_index(drop=True)
 
+    LOGGER.info("Building home/away and opponent matchup context")
     # Add matchup information
     df = add_matchup_features(df)
+    LOGGER.info("Building opponent history from team-game totals")
     df = add_opponent_features(df)
 
     # Process a player's history separately per season.
@@ -207,7 +213,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Create historical features for every stat.
-    for stat in HISTORICAL_STATS:
+    for position, stat in enumerate(HISTORICAL_STATS, start=1):
+        LOGGER.info("Building %s history (%s/%s)", stat, position, len(HISTORICAL_STATS))
         # Exclude the current game's result.
         previous = groups[stat].shift(1)
 
@@ -324,26 +331,22 @@ def save_features(df: pd.DataFrame):
         PROCESSED_DIR / "player_game_features.csv"
     )
 
+    LOGGER.info("Writing %s eligible examples to %s", f"{len(df):,}", output_path)
     df[output_columns].to_csv(
         output_path,
         index=False
     )
 
-    print(f"Saved {len(df)} examples")
-    print(f"Features per example: {len(feature_columns)}")
-    print(f"Prediction targets: {len(TARGET_STATS)}")
-    print(f"Output: {output_path}")
+    LOGGER.info("Saved %s examples with %s inputs and %s targets", f"{len(df):,}", len(feature_columns), len(TARGET_STATS))
 
 if __name__ == "__main__":
-    print("Loading historical NBA games...")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     games = load_game_data()
 
-    print(f"Loaded {len(games)} player-game records")
-
-    print("Building historical features...")
     featured_games = build_features(games)
 
+    LOGGER.info("Validating historical features")
     validate_features(featured_games)
     save_features(featured_games)
 
-    print("Feature building complete!")
+    LOGGER.info("Feature building complete")

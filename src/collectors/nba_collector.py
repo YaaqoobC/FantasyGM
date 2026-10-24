@@ -1,11 +1,13 @@
 from pathlib import Path
 import argparse
+import logging
 import sqlite3
 import time
 
 from nba_api.stats.endpoints import playergamelogs
 from pandas import DataFrame
 
+LOGGER = logging.getLogger(__name__)
 
 # Project Locations:
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,7 +24,7 @@ REQUIRED_COLUMNS = [
 ]
 
 def get_season_stats(season: str):
-    print(f"Getting NBA season stats for '{season}'")
+    LOGGER.info("Requesting NBA season stats for %s (timeout: 60 seconds)", season)
 
     response = playergamelogs.PlayerGameLogs(
         season_nullable=season,
@@ -44,6 +46,7 @@ def get_season_stats(season: str):
     ).copy()
 
     df["SEASON"] = season
+    LOGGER.info("Received %s player-game records for %s", f"{len(df):,}", season)
 
     return df
 
@@ -56,7 +59,7 @@ def save_raw_data(df: DataFrame, season: str):
     path = RAW_DATA_DIR / f"player_games_{season}.csv"
     df.to_csv(path, index=False)
 
-    print(f"Saved {len(df)} rows to {path}")
+    LOGGER.info("Saved %s raw rows to %s", f"{len(df):,}", path)
 
 def save_database(df: DataFrame):
     """
@@ -64,6 +67,7 @@ def save_database(df: DataFrame):
     """
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+    LOGGER.info("Writing player-game records to %s", DB_PATH)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS player_game_stats (
@@ -112,15 +116,13 @@ def save_database(df: DataFrame):
             rows,
         )
 
-        print(f"Stored {len(rows)} records in database")
+    LOGGER.info("Stored %s records in database", f"{len(rows):,}")
 
 def import_seasons(start_year: int, end_year: int):
     for year in range(start_year, end_year +1):
         season_str = f"{year}-{str(year+1)[-2:]}" # convert to this format: 2024-25
 
-        print(f"\n{'=' * 40}")
-        print(f"Importing season: {season_str}")
-        print(f"{'=' * 40}")
+        LOGGER.info("Importing season %s (%s/%s)", season_str, year - start_year + 1, end_year - start_year + 1)
 
         # Attempt each season up to three times
         for attempt in range(1, 4):
@@ -139,11 +141,11 @@ def import_seasons(start_year: int, end_year: int):
                 save_raw_data(df, season_str)
                 save_database(df)
 
-                print(f"Successfully imported {season_str}")
+                LOGGER.info("Successfully imported %s", season_str)
                 break
 
             except Exception as exc:
-                print(f"Attempt {attempt} failed: {exc}")
+                LOGGER.warning("Season %s attempt %s/3 failed: %s", season_str, attempt, exc)
 
                 if attempt == 3:
                     raise RuntimeError(
@@ -151,13 +153,15 @@ def import_seasons(start_year: int, end_year: int):
                     ) from exc
 
                 # Exponential backoff between retries
+                LOGGER.info("Retrying %s in %s seconds", season_str, 2 ** attempt)
                 time.sleep(2 ** attempt)
 
         # Avoid rapidly sending requests to NBA.com
         if year < end_year:
+            LOGGER.info("Waiting 3 seconds before the next season request")
             time.sleep(3)
 
-    print("\nAll seasons imported successfully!")
+    LOGGER.info("All seasons imported successfully")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -177,4 +181,5 @@ if __name__ == "__main__":
     if args.start > args.end:
         parser.error("--start cannot exceed --end")
 
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
     import_seasons(args.start, args.end)

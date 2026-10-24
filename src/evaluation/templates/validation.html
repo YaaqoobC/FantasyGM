@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FantasyGM — validation report</title>
+  <style>
+    :root { font: 16px/1.5 system-ui, sans-serif; color: #182b40; background: #f3f6fa; }
+    body { max-width: 1320px; margin: auto; padding: 28px; }
+    h1 { margin: 0; font-size: 2rem; } h2 { font-size: 1.1rem; margin: 0 0 8px; }
+    p { margin: 8px 0; } .muted { color: #53657b; }
+    .panel, .card { background: white; padding: 20px; border: 1px solid #dce4ee; border-radius: 12px; }
+    .filters, .metrics { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
+    label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+    input, select, button { font: inherit; padding: 8px 12px; border: 1px solid #b5c3d3; border-radius: 6px; }
+    #player { width: 280px; } button { cursor: pointer; background: #eaf0f8; align-self: end; }
+    .card { flex: 1; min-width: 140px; } .value { font-size: 1.7rem; font-weight: 650; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .plot { height: 340px; } .panel p { font-size: .9rem; color: #53657b; }
+    [hidden] { display: none !important; }
+    #empty { padding: 20px; color: #8c3600; } footer { margin: 24px 0; }
+    @media(max-width: 850px) { body { padding: 16px; } .charts { grid-template-columns: 1fr; } }
+  </style>
+  <script>__PLOTLY_JS__</script>
+</head>
+<body>
+  <header>
+    <p class="muted">FANTASYGM / MODEL EVALUATION</p>
+    <h1>Inspect the baseline</h1>
+    <p>Previous 10-game average · fixed statistical rule · no fitted model</p>
+    <p id="scope" class="muted"></p>
+  </header>
+  <div class="filters panel">
+    <label>Statistic<select id="statistic"></select></label>
+    <label>Player<input id="player" list="players" placeholder="All players — type a name"><datalist id="players"></datalist></label>
+    <label>From<input id="start" type="date"></label>
+    <label>Through<input id="end" type="date"></label>
+    <button id="reset" type="button">Reset filters</button>
+  </div>
+  <div class="metrics" aria-live="polite">
+    <div class="card">Player appearances<div id="count" class="value"></div></div>
+    <div class="card">MAE<div id="mae" class="value"></div></div>
+    <div class="card">RMSE<div id="rmse" class="value"></div></div>
+    <div class="card">Mean signed error<div id="bias" class="value"></div></div>
+  </div>
+  <p id="selection" class="muted"></p>
+  <p id="empty" hidden>No matching appearances. Select a player from the suggestions, adjust the dates, or reset the filters.</p>
+  <main id="charts" class="charts">
+    <section class="panel">
+      <h2>Predicted versus actual</h2>
+      <p>Each dot is one appearance. The diagonal is a perfect prediction. Above it means overprediction; below it means underprediction.</p>
+      <div id="scatter" class="plot"></div>
+    </section>
+    <section class="panel">
+      <h2>How errors are distributed</h2>
+      <p>Error = predicted − actual. Negative errors are underpredictions; positive errors are overpredictions. A narrower spread around zero is better.</p>
+      <div id="histogram" class="plot"></div>
+    </section>
+    <section class="panel">
+      <h2>Performance over time</h2>
+      <p id="timeline-help">Daily average actual and predicted values across selected appearances. Individual errors can cancel; use MAE to assess accuracy.</p>
+      <div id="timeline" class="plot"></div>
+    </section>
+    <section class="panel">
+      <h2>Error over time</h2>
+      <p>Daily MAE measures the size of the misses. Mean signed error shows their direction. Hover to see the number of appearances.</p>
+      <div id="errors" class="plot"></div>
+    </section>
+  </main>
+  <footer class="panel">
+    <h2>What this report can tell you</h2>
+    <p>MAE is the average absolute miss. RMSE gives large misses more weight. Mean signed error measures bias, not accuracy: positive means overprediction on average. All values use the selected statistic's units, not percentages.</p>
+    <p>Every chart and metric updates for the selected player and dates. Small selections are noisy. Zoom by dragging, hover for details, and use the chart toolbar to save an image. Double-click a chart to reset its zoom.</p>
+    <p>Only recorded appearances after 10 previous player games and 10 previous opponent games are included. History resets each season. Earlier completed validation games inform later predictions. Missed games and availability are not predicted.</p>
+    <p>The opponent feature is not used by this baseline. These charts do not establish its usefulness or the quality of roster decisions. Test-season results are excluded. This file works offline; no account or server is required.</p>
+  </footer>
+  <script id="report-data" type="application/json">__REPORT_DATA__</script>
+  <script>__REPORT_JS__</script>
+</body>
+</html>

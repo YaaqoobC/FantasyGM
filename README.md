@@ -1,6 +1,12 @@
 # FantasyGM
 An NBA fantasy basketball recommendation engine that automatically retrieves NBA statistics, understands your Yahoo fantasy league, predicts player performances, and recommends the best roster moves.
 
+## Agentic development
+
+Exploring agentic software development is a central goal of this project. FantasyGM relies heavily on coding agents for implementation, testing, documentation, and investigation, with human direction, guidance, and management. The aim is to develop practical skill in defining outcomes, directing agents, reviewing their work, and evaluating the resulting system.
+
+The workflow is maintained in [AGENTS.md](AGENTS.md), [project context](.agents/context/project.md), and [repository skills](.agents/skills). These capture coding standards, data contracts, roadmap reviews, and the proposal-to-delivery process. Reproducible experiments and chronological evaluation provide evidence for engineering and modeling decisions; agent-generated code is assessed through tests, review, and measured results.
+
 <img width="979" height="921" alt="image" src="https://github.com/user-attachments/assets/b2d8fab9-cfa5-49e5-a81f-3a9e6e1d489b" />
 
 
@@ -121,7 +127,30 @@ This predicts each of the 11 statistics using the player's previous 10 games in 
 
 The split is fixed: **2020-21 through 2023-24 for training**, **2024-25 for validation**, and **2025-26 reserved for final testing**. The baseline does not fit on the training partition; that partition is established for future model comparisons. Season dates must be ordered and cannot overlap, including on the same calendar day. Missing or unexpected seasons raise an error rather than silently changing the split.
 
-The command opens SQLite read-only, checks season/date metadata, and loads only training and validation game results. It builds features in memory and prints a JSON report with source/eligible/excluded row counts, date ranges, and validation MAE/RMSE for every statistic and fantasy points. It does not score the reserved test season or overwrite the existing processed CSV. Use `--db /path/to/nba.db` for another database following the same contract.
+The command opens SQLite read-only, checks season/date metadata, and loads only training and validation game results. It builds features in memory, prints a JSON report with source/eligible/excluded row counts, date ranges, and validation MAE/RMSE, and saves an interactive dashboard to `reports/baseline/index.html` with a companion `metrics.json`. It does not score the reserved test season or overwrite the existing processed CSV. Use `--db /path/to/nba.db` for another database following the same contract.
+
+### Visual validation
+
+Install dependencies in the project environment with `python -m pip install -r requirments.txt`, then run the benchmark and open `reports/baseline/index.html` in your browser. Plotly and the validation data are embedded in this file, so it works offline without a web server. Generated reports are ignored by Git. Re-running replaces the report at the same location; use `--report-dir reports/experiment-name` to keep separate runs, or `--no-report` for JSON-only output.
+
+From WSL, run this from the repository root to open the report through Windows:
+
+```bash
+explorer.exe "$(wslpath -w "$PWD/reports/baseline/index.html")"
+```
+
+The benchmark also prints a copyable opening command for the report it generated, including custom report directories. Alternatively, double-click `index.html` in your file explorer.
+
+Filter by statistic, player, and date range. For a player, type a name and choose the suggestion showing their ID; leave the field empty for all players. All charts and metric cards update to match the selection. Every eligible selected appearance is included, with no sampling. Hover for details, drag to zoom, and use the chart toolbar to save images.
+
+| View | What to look for |
+| --- | --- |
+| Predicted versus actual | Points near the diagonal are better. Above the diagonal means overprediction; below it means underprediction. Hover identifies the player and game. |
+| Error distribution | Errors close to zero are better. Wide tails reveal large misses; a shift away from zero suggests bias. |
+| Performance over time | Compare actual and predicted values for one player. For all players, these are daily averages, which can hide individual misses. |
+| Error over time | Daily MAE shows the size of misses, while mean signed error shows overprediction or underprediction. Hover shows the daily sample size. |
+
+The cards show the selected appearance count, MAE, RMSE, and mean signed error. A signed average near zero can hide large errors in opposite directions; use MAE and RMSE to judge accuracy. Small filtered samples are noisy, and selecting a player or date range changes the population being evaluated. These are diagnostics on validation data, not a new model or a final test result.
 
 **MAE** is the average absolute prediction error; **RMSE** gives more weight to large misses. Lower is better. Fantasy scoring is applied separately to predicted and actual stat lines, then their difference is measured. The documented league formula is `2*fgm - fga + ftm - fta + fg3m + pts + reb + 2*ast + 4*stl + 4*blk - 2*tov`.
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-FantasyGM predicts 11 next-game NBA statistics and uses league scoring to support roster recommendations. It is also a learning project: explain the reasoning behind important modeling and engineering decisions.
+FantasyGM predicts 11 next-game NBA statistics and uses league scoring to support roster recommendations. It is also a learning project: explain the reasoning behind important modeling and engineering decisions. Agentic software development is a central goal, with heavy use of coding agents and human direction and approval for consequential decisions; the public project framing is in README.md.
 
 ## Implemented
 
@@ -13,7 +13,9 @@ FantasyGM predicts 11 next-game NBA statistics and uses league scoring to suppor
 - `opponent` is categorical metadata extracted from matchup strings alongside `is_home`.
 - Validation checks required inputs, valid matchup context, sufficient history, and nonmissing training-ready inputs/targets.
 - `tests/test_features.py`: 13 tests covering matchup, player/opponent averages, leakage, opponent identity, join cardinality, ordering, season resets, warm-up, invalid data, validation, and temporary CSV export.
-- `src/evaluation/baseline.py`: read-only, in-memory 10-game player-average validation benchmark with league scoring, per-stat/fantasy MAE and RMSE, fixed season partitions, eligibility counts, and date-order checks. `tests/test_baseline.py` adds 9 focused tests for scoring, errors, partition boundaries, reserved test isolation, reproducibility, warm-up, and leakage.
+- `src/evaluation/baseline.py`: read-only, in-memory 10-game player-average validation benchmark with league scoring, per-stat/fantasy MAE and RMSE, fixed season partitions, eligibility counts, and date-order checks. `tests/test_baseline.py` adds 11 focused tests for scoring, errors, partition boundaries, reserved test isolation, reproducibility, warm-up, leakage, visual report contents, and report row isolation.
+
+- `src/evaluation/reporting.py` and `src/evaluation/templates/`: offline Plotly dashboard with statistic/player/date filters, predicted-versus-actual scatter, signed-error histogram, daily actual/predicted values, and daily MAE/bias. Every selected eligible validation appearance is included; daily aggregates show sample counts. CLI runs save `reports/baseline/index.html` and `metrics.json` by default, with `--report-dir` and `--no-report` options. `reports/` is ignored by Git; Plotly is declared in `requirments.txt`.
 
 ## Data contracts
 
@@ -44,7 +46,7 @@ Approved split: training 2020-21 through 2023-24, validation 2024-25, reserved t
 
 Each next-game prediction is the player's prior 10-game mean for each target. No parameters or preprocessing are fitted. Earlier completed validation games may inform later validation predictions; the current game's outcome cannot inform its own prediction. Seasonal history and existing player/opponent warm-up eligibility are unchanged. Baseline predictions do not use opponent points allowed, so the experiment does not evaluate that feature's predictive value.
 
-On 2026-10-23, the benchmark evaluated 20,868 eligible validation player-games (5,438 excluded by warm-up). The training partition contains 80,128 eligible examples. Validation MAE: points 4.786, rebounds 1.985, assists 1.397, fantasy points 10.239; fantasy RMSE 13.125. Full per-stat results and the reproducible command are in [README.md](../../README.md#first-prediction-benchmark). All 9 benchmark tests and 13 existing feature tests passed. Both module and direct-script entry points are supported and produce identical reports on synthetic fixtures; direct execution also works outside the repository when given an absolute script path and --db path. These results measure recorded appearances after warm-up, not non-appearances, availability, or roster quality. The test season remains reserved.
+On 2026-10-23, the benchmark evaluated 20,868 eligible validation player-games (5,438 excluded by warm-up). The training partition contains 80,128 eligible examples. Validation MAE: points 4.786, rebounds 1.985, assists 1.397, fantasy points 10.239; fantasy RMSE 13.125. Full per-stat results and the reproducible command are in [README.md](../../README.md#first-prediction-benchmark). All 11 benchmark tests and 13 existing feature tests passed. Both module and direct-script entry points are supported and produce identical reports on synthetic fixtures; direct execution also works outside the repository when given an absolute script path and --db path. These results measure recorded appearances after warm-up, not non-appearances, availability, or roster quality. The test season remains reserved.
 
 ## Verification and limitations
 
@@ -53,3 +55,5 @@ On 2026-10-23, all 13 synthetic tests passed. SQLite `quick_check` passed and a 
 The existing processed CSV was not rebuilt and still contains the previous feature set. Run the documented feature command when the dataset is needed for the next experiment.
 
 Points allowed per game is not adjusted for pace or opponent strength. Team totals assume complete player logs: pairing checks cannot detect an individually missing player record. No predictive improvement has been established yet.
+
+On 2026-10-23, a full validation run generated the offline dashboard for all 20,868 eligible appearances and reproduced the previous errors. Headless Chromium checks verified four rendered charts, metric agreement, statistic/player/date filtering, empty selections, reset, and mobile layout, with no JavaScript errors or external requests. A screenshot was visually inspected. Visual reporting changes presentation only; no model was trained, source data and the processed CSV were unchanged, and test-season statistics remain excluded.

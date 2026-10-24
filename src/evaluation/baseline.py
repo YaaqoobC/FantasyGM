@@ -2,7 +2,9 @@
 
 import argparse
 import json
+import logging
 from pathlib import Path
+import shlex
 import sqlite3
 import sys
 
@@ -26,6 +28,7 @@ SCORING_WEIGHTS = {
     "pts": 1, "reb": 1, "ast": 2, "stl": 4, "blk": 4, "tov": -2,
     "fgm": 2, "fga": -1, "fg3m": 1, "ftm": 1, "fta": -1,
 }
+LOGGER = logging.getLogger(__name__)
 
 
 def season_date_ranges(games, expected_seasons):
@@ -65,16 +68,21 @@ def load_development_games(db_path=DB_PATH):
     db_path = Path(db_path).resolve()
     if not db_path.is_file():
         raise FileNotFoundError(f"Database not found: {db_path}")
+    LOGGER.info("Opening database read-only: %s", db_path)
     with sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True) as connection:
+        LOGGER.info("Checking season dates; %s remains reserved for testing", TEST_SEASON)
         dates = pd.read_sql_query(
             "SELECT DISTINCT season, game_date FROM player_game_stats", connection
         )
         season_date_ranges(dates, (*DEVELOPMENT_SEASONS, TEST_SEASON))
         placeholders = ",".join("?" for _ in DEVELOPMENT_SEASONS)
-        return pd.read_sql_query(
+        LOGGER.info("Loading training and validation game results")
+        games = pd.read_sql_query(
             f"SELECT * FROM player_game_stats WHERE season IN ({placeholders})",
             connection, params=DEVELOPMENT_SEASONS,
         )
+    LOGGER.info("Loaded %s player-game records", f"{len(games):,}")
+    return games
 
 
 def checked_stats(frame):
@@ -122,18 +130,22 @@ def evaluate_predictions(actual, predicted):
     }).to_dict(orient="index")
 
 
-def run_baseline(games):
-    """Build eligible development examples and score only the validation season."""
+def run_baseline(games, report_dir=None):
+    """Score validation predictions and optionally save an offline visual report."""
+    LOGGER.info("Checking chronological development partitions")
     ranges = season_date_ranges(games, DEVELOPMENT_SEASONS)
     features = build_features(games)
+    LOGGER.info("Validating features and selecting eligible appearances")
     validate_features(features)
     ready = training_ready_rows(features)
     counts = ready.groupby("season").size()
     if any(counts.get(season, 0) == 0 for season in DEVELOPMENT_SEASONS):
         raise ValueError("Each development season must have training-ready examples")
     validation = ready[ready["season"] == VALIDATION_SEASON]
+    LOGGER.info("Evaluating %s eligible appearances in %s", f"{len(validation):,}", VALIDATION_SEASON)
     raw_counts = games.groupby("season").size()
-    return {
+    predictions = rolling_predictions(validation)
+    report = {
         "benchmark": "previous_10_games_mean",
         "training_seasons": list(TRAIN_SEASONS),
         "validation_season": VALIDATION_SEASON,
@@ -147,17 +159,44 @@ def run_baseline(games):
             }
             for season in DEVELOPMENT_SEASONS
         },
-        "validation_metrics": evaluate_predictions(validation, rolling_predictions(validation)),
+        "validation_metrics": evaluate_predictions(validation, predictions),
     }
+    if report_dir is not None:
+        # Keep plotting optional for callers that only need numeric metrics.
+        from src.evaluation.reporting import write_validation_report
+
+        actual = checked_stats(validation).copy()
+        actual["fantasy_points"] = fantasy_points(actual)
+        predictions["fantasy_points"] = fantasy_points(predictions)
+        report_path = write_validation_report(report, validation, actual, predictions, report_dir)
+        report["visual_report"] = str(report_path)
+    LOGGER.info("Benchmark complete; reserved test statistics were not evaluated")
+    return report
+
+
+def browser_open_command(report_path):
+    """Return a copyable WSL command, quoting paths that contain shell characters."""
+    path = shlex.quote(str(Path(report_path).resolve()))
+    return f'explorer.exe "$(wslpath -w {path})"'
 
 
 def main():
-    """Print the validation report without saving datasets or model artifacts."""
+    """Print validation metrics and save charts without changing source datasets."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", type=Path, default=DB_PATH, help="Read-only SQLite source")
+    parser.add_argument(
+        "--report-dir", type=Path, default=DB_PATH.parents[1] / "reports" / "baseline",
+        help="Directory for the offline HTML dashboard and metrics.json",
+    )
+    parser.add_argument("--no-report", action="store_true", help="Print JSON without saving charts")
     args = parser.parse_args()
-    report = run_baseline(load_development_games(args.db))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+    report = run_baseline(
+        load_development_games(args.db), report_dir=None if args.no_report else args.report_dir
+    )
     print(json.dumps(report, indent=2, allow_nan=False))
+    if "visual_report" in report:
+        LOGGER.info("Open in browser (WSL):\n%s", browser_open_command(report["visual_report"]))
 
 
 if __name__ == "__main__":
