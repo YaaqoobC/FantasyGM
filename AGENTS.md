@@ -12,7 +12,9 @@ Read [.agents/context/project.md](.agents/context/project.md) for the project st
 - Keep generated CSVs, raw downloads, databases, credentials, and local environments out of commits. Use synthetic fixtures for tests.
 - Update the project context when a milestone or data contract changes. Label planned work separately from implemented behavior.
 
-## Repository skill
+## Repository skills
+
+For project prioritization or requests to determine the next task, read [.agents/skills/next-step/SKILL.md](.agents/skills/next-step/SKILL.md).
 
 For requests to add or modify historical player, team, or opponent features, read [.agents/skills/add-historic-features/SKILL.md](.agents/skills/add-historic-features/SKILL.md).
 
